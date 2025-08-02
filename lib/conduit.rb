@@ -1,6 +1,27 @@
 require "conduit/version"
 require "conduit/engine"
+require "conduit/middleware"
+require "conduit/middleware/logging"
+require "conduit/middleware/throttling"
+require "conduit/middleware/session_tracking"
 
 module Conduit
-  # Your code goes here...
+  class Error < StandardError; end
+
+  class SessionTimeout < Error; end
+
+  class InvalidTransition < Error; end
+
+  mattr_accessor :configuration
+
+  class << self
+    def configure
+      self.configuration ||= Configuration.new
+      yield(configuration) if block_given?
+    end
+
+    def process(params)
+      RequestHandler.new.process(params)
+    end
+  end
 end
