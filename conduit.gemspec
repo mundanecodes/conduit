@@ -26,7 +26,7 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "standard"
   spec.add_development_dependency "rubocop-rails-omakase"
-  spec.add_development_dependency "rspec-rails", "~> 7.0"
+  spec.add_development_dependency "rspec-rails", "~> 8.0"
   spec.add_development_dependency "fakeredis"
   spec.add_development_dependency "pry-rails"
 end
