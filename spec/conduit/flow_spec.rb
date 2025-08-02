@@ -1,28 +1,24 @@
-# spec/conduit/flow_spec.rb
-require "spec_helper"
+class TestBankingFlow < Conduit::Flow
+  initial_state :welcome
+
+  state :welcome do
+    display "Welcome to TestBank\n1. Check Balance\n2. Exit"
+
+    on "1", to: :check_balance
+    on "2" do |_, _|
+      Conduit::Response.new(text: "Thank you for banking with us!", action: :end)
+    end
+  end
+
+  state :check_balance do
+    display do |session|
+      "Your balance is KES #{session.data[:balance] || 1000}\n\n0. Back"
+    end
+  end
+end
 
 module Conduit
   RSpec.describe Flow do
-    # Define a test flow
-    class TestBankingFlow < Flow
-      initial_state :welcome
-
-      state :welcome do
-        display "Welcome to TestBank\n1. Check Balance\n2. Exit"
-
-        on "1", to: :check_balance
-        on "2" do |_, _|
-          Response.new(text: "Thank you for banking with us!", action: :end)
-        end
-      end
-
-      state :check_balance do
-        display do |session|
-          "Your balance is KES #{session.data[:balance] || 1000}\n\n0. Back"
-        end
-      end
-    end
-
     let(:flow) { TestBankingFlow.new }
     let(:session) { Session.new(session_id: "test123", msisdn: "254712345678") }
 
