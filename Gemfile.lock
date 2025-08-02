@@ -101,8 +101,8 @@ GEM
     fakeredis (0.1.4)
     globalid (1.2.1)
       activesupport (>= 6.1)
-    hiredis-client (0.25.0)
-      redis-client (= 0.25.0)
+    hiredis-client (0.25.1)
+      redis-client (= 0.25.1)
     i18n (1.14.7)
       concurrent-ruby (~> 1.0)
     io-console (0.8.0)
@@ -139,6 +139,8 @@ GEM
       net-protocol
     nio4r (2.7.4)
     nokogiri (1.18.8-x86_64-darwin)
+      racc (~> 1.4)
+    nokogiri (1.18.8-x86_64-linux-gnu)
       racc (~> 1.4)
     parallel (1.27.0)
     parser (3.3.8.0)
@@ -202,9 +204,9 @@ GEM
     rdoc (6.14.2)
       erb
       psych (>= 4.0.0)
-    redis (5.4.0)
+    redis (5.4.1)
       redis-client (>= 0.22.0)
-    redis-client (0.25.0)
+    redis-client (0.25.1)
       connection_pool
     regexp_parser (2.10.0)
     reline (0.6.1)
@@ -286,6 +288,7 @@ GEM
 
 PLATFORMS
   x86_64-darwin
+  x86_64-linux
 
 DEPENDENCIES
   conduit!
