@@ -1,5 +1,7 @@
 module Conduit
   class Flow
+    class InvalidTransition < StandardError; end
+
     class << self
       attr_reader :initial_state_name
 
@@ -36,7 +38,7 @@ module Conduit
 
       # Process input if provided
       if input.present?
-        result = current_state.handle_input(input, session)
+        result = current_state.handle_input(input, session, self)
         return result if result.is_a?(Response)
 
         # If state changed, render new state
