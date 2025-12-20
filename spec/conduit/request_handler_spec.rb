@@ -198,6 +198,137 @@ module Conduit
           expect(Conduit.configuration.logger).to have_received(:error).with(/No flow found/)
         end
       end
+
+      context "with flow transitions" do
+        before do
+          # Create an authentication flow that transitions to main menu
+          auth_flow = Class.new(Flow) do
+            initial_state :enter_pin
+
+            state :enter_pin do
+              display "Enter your PIN:"
+
+              on_any do |input, session|
+                if input == "1234"
+                  session.data[:authenticated] = true
+                  # Return a flow transition to MainMenu
+                  Response.new(
+                    text: "Welcome!",
+                    action: :continue,
+                    next_flow: Object.const_get("Conduit::MainMenuFlow")
+                  )
+                else
+                  Response.new(text: "Invalid PIN. Try again:")
+                end
+              end
+            end
+          end
+
+          # Create a main menu flow
+          main_menu_flow = Class.new(Flow) do
+            initial_state :menu
+
+            state :menu do
+              display "Main Menu\n1. Profile\n2. Logout"
+
+              on "1" do
+                Response.new(text: "Profile: John Doe", action: :end)
+              end
+
+              on "2" do
+                Response.new(text: "Goodbye!", action: :end)
+              end
+            end
+          end
+
+          # Make flows available as constants
+          stub_const("Conduit::AuthFlow", auth_flow)
+          stub_const("Conduit::MainMenuFlow", main_menu_flow)
+
+          # Register the authentication flow
+          Router.draw do
+            route "*384#", to: auth_flow
+          end
+        end
+
+        it "transitions from one flow to another automatically" do
+          session_id = "AT_TRANSITION_#{Time.now.to_i}"
+
+          # Step 1: Enter PIN
+          params1 = {
+            sessionId: session_id,
+            phoneNumber: "+254712345678",
+            serviceCode: "*384#",
+            text: ""
+          }
+          response1 = handler.process(params1)
+          expect(response1).to eq("CON Enter your PIN:")
+
+          # Step 2: Correct PIN - should show welcome and set pending transition
+          params2 = params1.merge(text: "1234")
+          response2 = handler.process(params2)
+          expect(response2).to eq("CON Welcome!")
+
+          # Verify pending_flow_transition was set in session
+          store = SessionStore.new
+          session = store.get(session_id)
+          expect(session.data[:pending_flow_transition]).to eq("Conduit::MainMenuFlow")
+
+          # Step 3: Next input should process in MainMenuFlow
+          params3 = params1.merge(text: "1234*1")
+          response3 = handler.process(params3)
+          expect(response3).to eq("CON Main Menu\n1. Profile\n2. Logout")
+
+          # Verify pending_flow_transition was cleared
+          session = store.get(session_id)
+          expect(session.data[:pending_flow_transition]).to be_nil
+        end
+
+        it "processes empty input in transitioned flow to show initial state" do
+          session_id = "AT_TRANSITION_EMPTY_#{Time.now.to_i}"
+
+          # Step 1: Enter PIN
+          params1 = {
+            sessionId: session_id,
+            phoneNumber: "+254712345678",
+            serviceCode: "*384#",
+            text: ""
+          }
+          handler.process(params1)
+
+          # Step 2: Correct PIN
+          params2 = params1.merge(text: "1234")
+          handler.process(params2)
+
+          # Step 3: Simulate user pressing any key to continue
+          # The transitioned flow should be called with empty input to display initial state
+          params3 = params1.merge(text: "1234*")
+          response3 = handler.process(params3)
+          expect(response3).to eq("CON Main Menu\n1. Profile\n2. Logout")
+        end
+
+        it "allows user interaction in transitioned flow" do
+          session_id = "AT_TRANSITION_INTERACT_#{Time.now.to_i}"
+
+          # Go through authentication
+          params = {
+            sessionId: session_id,
+            phoneNumber: "+254712345678",
+            serviceCode: "*384#",
+            text: ""
+          }
+          handler.process(params)
+          handler.process(params.merge(text: "1234"))
+
+          # Now in MainMenuFlow, select Profile
+          response = handler.process(params.merge(text: "1234*1"))
+          expect(response).to eq("CON Main Menu\n1. Profile\n2. Logout")
+
+          # Select option 1 (Profile)
+          response = handler.process(params.merge(text: "1234*1*1"))
+          expect(response).to eq("END Profile: John Doe")
+        end
+      end
     end
   end
 end
