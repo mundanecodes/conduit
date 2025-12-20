@@ -66,5 +66,205 @@ module Conduit
         expect(response.text).to include("Welcome to TestBank")
       end
     end
+
+    describe "display helpers DSL" do
+      it "supports display builder syntax" do
+        test_flow = Class.new(Flow) do
+          initial_state :menu
+
+          state :menu do
+            display do |session|
+              header "Welcome #{session.data[:name]}", "Acme Corp"
+
+              menu do
+                option 1, "Profile"
+                option 2, "Settings"
+                exit_option
+              end
+            end
+
+            on "1", to: :profile
+            on "2", to: :settings
+          end
+
+          state :profile do
+            display "Your Profile"
+          end
+
+          state :settings do
+            display "Settings"
+          end
+        end
+
+        session = Session.new(session_id: "test", msisdn: "254712345678", service_code: "*123#")
+        session.data[:name] = "John"
+
+        flow = test_flow.new
+        response = flow.process(session, "")
+
+        expected = <<~TEXT.strip
+          Welcome John
+          Acme Corp
+
+          1. Profile
+          2. Settings
+          000. Exit
+        TEXT
+
+        expect(response.text).to eq(expected)
+      end
+    end
+
+    describe "validation DSL" do
+      it "validates input with built-in validators" do
+        test_flow = Class.new(Flow) do
+          initial_state :enter_amount
+
+          state :enter_amount do
+            display "Enter amount (1-1000):"
+
+            validates :numeric
+            validates :greater_than, 0
+            validates :less_than, 1001
+
+            on_valid do |input, session|
+              session.data[:amount] = input.to_f
+            end
+
+            on_any to: :confirm
+          end
+
+          state :confirm do
+            display do |session|
+              "Confirm amount: #{session.data[:amount]}"
+            end
+          end
+        end
+
+        session = Session.new(session_id: "test", msisdn: "254712345678", service_code: "*123#")
+        flow = test_flow.new
+
+        # Valid input
+        flow.process(session, "")
+        flow.process(session, "500")
+        expect(session.data[:amount]).to eq(500.0)
+        expect(session.current_state).to eq("confirm")
+
+        # Invalid - non-numeric
+        session2 = Session.new(session_id: "test2", msisdn: "254712345678", service_code: "*123#")
+        flow2 = test_flow.new
+        flow2.process(session2, "")
+        response = flow2.process(session2, "abc")
+        expect(response.text).to include("valid number")
+        expect(session2.current_state).to eq(:enter_amount)
+
+        # Invalid - too large
+        session3 = Session.new(session_id: "test3", msisdn: "254712345678", service_code: "*123#")
+        flow3 = test_flow.new
+        flow3.process(session3, "")
+        response = flow3.process(session3, "2000")
+        expect(response.text).to include("less than")
+        expect(session3.current_state).to eq(:enter_amount)
+      end
+
+      it "supports custom validators" do
+        test_flow = Class.new(Flow) do
+          initial_state :enter_days
+
+          state :enter_days do
+            display "Enter number of days:"
+
+            validates :numeric
+            validates do |input, session|
+              # Custom validation
+              days = input.to_f
+              if days <= 10
+                true
+              else
+                "Cannot request more than 10 days at once"
+              end
+            end
+
+            on_valid do |input, session|
+              session.data[:days] = input.to_f
+            end
+
+            on_any to: :done
+          end
+
+          state :done do
+            display "Done"
+          end
+        end
+
+        session = Session.new(session_id: "test", msisdn: "254712345678", service_code: "*123#")
+        flow = test_flow.new
+
+        # Valid
+        flow.process(session, "")
+        flow.process(session, "5")
+        expect(session.data[:days]).to eq(5.0)
+
+        # Invalid - exceeds custom limit
+        session2 = Session.new(session_id: "test2", msisdn: "254712345678", service_code: "*123#")
+        flow2 = test_flow.new
+        flow2.process(session2, "")
+        response = flow2.process(session2, "15")
+        expect(response.text).to include("Cannot request more than 10 days")
+      end
+
+      it "supports custom error handling with on_invalid" do
+        test_flow = Class.new(Flow) do
+          initial_state :enter_pin
+
+          state :enter_pin do
+            display "Enter 4-digit PIN:"
+
+            validates :matches, /^\d{4}$/, "PIN must be exactly 4 digits"
+
+            on_invalid do |error, session|
+              session.data[:attempts] ||= 0
+              session.data[:attempts] += 1
+
+              if session.data[:attempts] >= 3
+                Response.new(text: "Too many attempts. Goodbye.", action: :end)
+              else
+                Response.new(text: "#{error}\nAttempts: #{session.data[:attempts]}/3", action: :continue)
+              end
+            end
+
+            on_valid do |input, session|
+              session.data[:pin] = input
+            end
+
+            on_any to: :success
+          end
+
+          state :success do
+            display "PIN accepted"
+          end
+        end
+
+        session = Session.new(session_id: "test", msisdn: "254712345678", service_code: "*123#")
+        flow = test_flow.new
+
+        flow.process(session, "")
+
+        # First invalid attempt
+        response = flow.process(session, "12")
+        expect(response.text).to include("PIN must be exactly 4 digits")
+        expect(response.text).to include("Attempts: 1/3")
+        expect(response).to be_continue
+
+        # Second invalid attempt
+        response = flow.process(session, "abc")
+        expect(response.text).to include("Attempts: 2/3")
+
+        # Third invalid attempt - should end
+        response = flow.process(session, "12345")
+        expect(response.text).to include("Too many attempts")
+        expect(response).to be_end
+      end
+    end
   end
 end

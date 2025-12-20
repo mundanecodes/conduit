@@ -50,11 +50,41 @@ module Conduit
           action: :end
         )
       else
-        # Get flow for service code
-        flow = Router.find_flow(params[:service_code])
+        # Check if there's a pending flow transition from previous request
+        if session.data[:pending_flow_transition]
+          flow_class_name = session.data[:pending_flow_transition]
+          session.data.delete(:pending_flow_transition)
 
-        # Process the request
-        response = flow.process(session, params[:input])
+          # Reset session state for new flow
+          session.current_state = nil
+
+          # Store the current flow for subsequent requests
+          session.data[:current_flow] = flow_class_name
+
+          # Instantiate the new flow and process with empty input (display initial state)
+          flow = Object.const_get(flow_class_name).new
+          response = flow.process(session, "")
+        elsif session.data[:current_flow]
+          # Continue with the current flow
+          flow = Object.const_get(session.data[:current_flow]).new
+          response = flow.process(session, params[:input])
+        else
+          # Get flow for service code (normal flow - first request)
+          flow = Router.find_flow(params[:service_code])
+
+          # Store the flow class name for subsequent requests
+          session.data[:current_flow] = flow.class.name
+
+          response = flow.process(session, params[:input])
+        end
+
+        # Handle flow transition if next_flow is specified
+        if response.transition?
+          # Store the next flow class name for the NEXT request
+          session.data[:pending_flow_transition] = response.next_flow.name
+          # Keep the response text but change action to continue
+          response = Response.new(text: response.text, action: :continue)
+        end
 
         # Save or cleanup session
         if response.end?

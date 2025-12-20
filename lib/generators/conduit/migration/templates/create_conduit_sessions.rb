@@ -10,6 +10,7 @@ class CreateConduitSessions < ActiveRecord::Migration[8.0] # this needs fixing t
       t.boolean :completed, default: false
       t.datetime :started_at, null: false
       t.datetime :completed_at
+      t.timestamps null: false
 
       t.index [:msisdn, :created_at]
       t.index :created_at

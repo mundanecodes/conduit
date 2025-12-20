@@ -10,12 +10,54 @@ module Conduit
       @transitions = {}
       @display_block = nil
       @before_callbacks = []
+      @validations = []
+      @on_valid_block = nil
+      @on_invalid_block = nil
 
       instance_eval(&) if block_given?
     end
 
     def display(text = nil, &block)
-      @display_block = block || ->(_) { text }
+      @display_block = if block
+        lambda do |session|
+          # Try to execute block in DisplayBuilder context
+          builder = DisplayBuilder.new
+          result = builder.instance_exec(session, &block)
+
+          # If block returns a string, use that (old style)
+          # Otherwise, use the builder's accumulated content (new DSL style)
+          if result.is_a?(String)
+            result
+          else
+            builder.to_s
+          end
+        end
+      else
+        ->(_) { text }
+      end
+    end
+
+    def validates(validator_name = nil, *args, **options, &custom_validator)
+      if custom_validator
+        # Custom validator block
+        @validations << custom_validator
+      elsif validator_name.is_a?(Symbol)
+        # Built-in validator
+        validator = Validator.public_send(validator_name, *args, **options)
+        @validations << validator
+      elsif validator_name.nil?
+        raise ArgumentError, "Must provide either a validator name or a block"
+      else
+        raise ArgumentError, "Invalid validator: #{validator_name}"
+      end
+    end
+
+    def on_valid(&block)
+      @on_valid_block = block
+    end
+
+    def on_invalid(&block)
+      @on_invalid_block = block
     end
 
     def on(input, options = {}, &block)
@@ -43,17 +85,46 @@ module Conduit
       Response.new(text: content, action: :continue)
     end
 
-    def handle_input(input, session)
+    def handle_input(input, session, flow = nil)
+      # Check for exact transition match first (before validations)
+      # This allows specific handlers like `on "0"` to override validations
+      exact_transition = @transitions[input]
+
+      if exact_transition
+        return exact_transition.execute(input, session)
+      end
+
+      # Check for global back navigation (only if no exact match)
       if input == "0" && session.can_go_back?
         session.go_back
         return nil
-      elsif input == "00"
-        session.navigate_to(@flow.class.initial_state_name)
+      elsif input == "00" && flow
+        session.navigate_to(flow.class.initial_state_name)
         return nil
       end
 
-      # Check for exact match first
-      transition = @transitions[input] || @transitions[:any]
+      # Run validations if any are defined
+      if @validations.any?
+        validation_error = run_validations(input, session, flow)
+
+        if validation_error
+          # Validation failed
+          if @on_invalid_block
+            return @on_invalid_block.call(validation_error, session)
+          else
+            return Response.new(text: validation_error, action: :continue)
+          end
+        elsif @on_valid_block
+          # Validation passed
+          result = @on_valid_block.call(input, session)
+          return result if result.is_a?(Response)
+
+          # Continue with normal transition handling
+        end
+      end
+
+      # Check for catch-all transition
+      transition = @transitions[:any]
 
       return nil unless transition
 
@@ -64,6 +135,26 @@ module Conduit
 
     def run_callbacks(callbacks, *)
       callbacks.each { |cb| cb.call(*) }
+    end
+
+    def run_validations(input, session, flow)
+      @validations.each do |validation|
+        result = if validation.respond_to?(:call)
+          # Lambda or proc
+          validation.call(input, session)
+        else
+          # Method name (symbol)
+          flow.send(validation, input, session)
+        end
+
+        # If validation returns a string, it's an error message
+        return result if result.is_a?(String)
+
+        # If validation returns false, use a generic message
+        return "Invalid input" if result == false
+      end
+
+      nil # No errors
     end
   end
 

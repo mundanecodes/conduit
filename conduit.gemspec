@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
     Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
   end
 
-  spec.required_ruby_version = ">= 3.4.0"
+  spec.required_ruby_version = ">= 3.4.1"
 
   spec.add_dependency "rails", ">= 8.0.2"
   spec.add_dependency "redis", ">= 5.0"
