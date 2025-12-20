@@ -75,7 +75,7 @@ module Conduit
           state :menu do
             display do |session|
               header "Welcome #{session.data[:name]}", "Acme Corp"
-              
+
               menu do
                 option 1, "Profile"
                 option 2, "Settings"
@@ -98,7 +98,7 @@ module Conduit
 
         session = Session.new(session_id: "test", msisdn: "254712345678", service_code: "*123#")
         session.data[:name] = "John"
-        
+
         flow = test_flow.new
         response = flow.process(session, "")
 
@@ -146,7 +146,7 @@ module Conduit
 
         # Valid input
         flow.process(session, "")
-        response = flow.process(session, "500")
+        flow.process(session, "500")
         expect(session.data[:amount]).to eq(500.0)
         expect(session.current_state).to eq("confirm")
 
@@ -249,7 +249,7 @@ module Conduit
         flow = test_flow.new
 
         flow.process(session, "")
-        
+
         # First invalid attempt
         response = flow.process(session, "12")
         expect(response.text).to include("PIN must be exactly 4 digits")

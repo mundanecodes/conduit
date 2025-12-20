@@ -47,7 +47,7 @@ module Conduit
     def self.in_range(min, max)
       lambda do |input, _session|
         num = input.to_f
-        return true if num >= min && num <= max
+        return true if num.between?(min, max)
         "Must be between #{min} and #{max}"
       end
     end

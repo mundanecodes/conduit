@@ -57,7 +57,7 @@ module Conduit
 
           # Reset session state for new flow
           session.current_state = nil
-          
+
           # Store the current flow for subsequent requests
           session.data[:current_flow] = flow_class_name
 
@@ -71,10 +71,10 @@ module Conduit
         else
           # Get flow for service code (normal flow - first request)
           flow = Router.find_flow(params[:service_code])
-          
+
           # Store the flow class name for subsequent requests
           session.data[:current_flow] = flow.class.name
-          
+
           response = flow.process(session, params[:input])
         end
 

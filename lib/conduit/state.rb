@@ -18,12 +18,12 @@ module Conduit
     end
 
     def display(text = nil, &block)
-      if block
-        @display_block = lambda do |session|
+      @display_block = if block
+        lambda do |session|
           # Try to execute block in DisplayBuilder context
           builder = DisplayBuilder.new
           result = builder.instance_exec(session, &block)
-          
+
           # If block returns a string, use that (old style)
           # Otherwise, use the builder's accumulated content (new DSL style)
           if result.is_a?(String)
@@ -33,7 +33,7 @@ module Conduit
           end
         end
       else
-        @display_block = ->(_) { text }
+        ->(_) { text }
       end
     end
 
@@ -89,7 +89,7 @@ module Conduit
       # Check for exact transition match first (before validations)
       # This allows specific handlers like `on "0"` to override validations
       exact_transition = @transitions[input]
-      
+
       if exact_transition
         return exact_transition.execute(input, session)
       end
@@ -114,12 +114,10 @@ module Conduit
           else
             return Response.new(text: validation_error, action: :continue)
           end
-        else
+        elsif @on_valid_block
           # Validation passed
-          if @on_valid_block
-            result = @on_valid_block.call(input, session)
-            return result if result.is_a?(Response)
-          end
+          result = @on_valid_block.call(input, session)
+          return result if result.is_a?(Response)
 
           # Continue with normal transition handling
         end
@@ -151,7 +149,7 @@ module Conduit
 
         # If validation returns a string, it's an error message
         return result if result.is_a?(String)
-        
+
         # If validation returns false, use a generic message
         return "Invalid input" if result == false
       end
