@@ -20,9 +20,9 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.4.1"
 
   spec.add_dependency "rails", ">= 8.0.2"
-  spec.add_dependency "redis", ">= 5.0"
+  spec.add_dependency "redis", "~> 5.0"
   spec.add_dependency "connection_pool", "~> 2.4"
-  spec.add_dependency "hiredis-client", ">= 0.22"
+  spec.add_dependency "hiredis-client", "~> 0.22"
 
   spec.add_development_dependency "standard"
   spec.add_development_dependency "rubocop-rails-omakase"

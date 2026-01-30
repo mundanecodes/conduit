@@ -3,9 +3,9 @@ PATH
   specs:
     conduit (0.1.0)
       connection_pool (~> 2.4)
-      hiredis-client (>= 0.22)
+      hiredis-client (~> 0.22)
       rails (>= 8.0.2)
-      redis (>= 5.0)
+      redis (~> 5.0)
 
 GEM
   remote: https://rubygems.org/
