@@ -22,7 +22,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "rails", ">= 8.0.2"
   spec.add_dependency "redis", ">= 5.0"
   spec.add_dependency "connection_pool", "~> 2.4"
-
+  
   spec.add_development_dependency "standard"
   spec.add_development_dependency "rubocop-rails-omakase"
   spec.add_development_dependency "rspec-rails", "~> 8.0"
